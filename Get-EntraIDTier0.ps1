@@ -1,5 +1,6 @@
 ﻿# PowerShell script authored by Sean Metcalf (@PyroTek3)
 # 2026-01-12
+# Last Update: 2026-01-26
 # Script provided as-is
 
 Param
@@ -10,12 +11,12 @@ Param
 IF ($InstallPreReqs -eq $True)
  { Install-Module -Name Microsoft.Entra -Repository PSGallery -Scope CurrentUser -Force -AllowClobber }
 
-Import-Module Microsoft.Entra
+# Import-Module Microsoft.Entra
 Connect-Entra
 #  Get-Command -Module Microsoft.Entra* -verb get
 
 # Get Administration
-$DirectoryRoleArray = Get-EntraDirectoryRole
+$DirectoryRoleArray = Get-EntraDirectoryRole 
 
 # Entra ID Tier Membership explained here: https://trustedsec.com/blog/managing-privileged-roles-in-microsoft-entra-id-a-pragmatic-approach
 $Tier0RoleArray = @{
@@ -31,6 +32,7 @@ $Tier0RoleArray = @{
   }
 
 $HighlyPrivilegedMemberRoleArray = @()
+$EntraRAGOwnerArray = @()
 ForEach ( $HighlyPrivilegedRoleArrayItem in $Tier0RoleArray.GetEnumerator() )
  {  
    $EntraDirectoryRoleMemberArray = Get-EntraDirectoryRoleMember $HighlyPrivilegedRoleArrayItem.Value -ErrorAction SilentlyContinue
@@ -43,6 +45,19 @@ ForEach ( $HighlyPrivilegedRoleArrayItem in $Tier0RoleArray.GetEnumerator() )
        IF ($EntraDirectoryRoleMemberArrayItem.'@odata.type' -eq '#microsoft.graph.group')
          { 
             $EntraGroupName = (Get-EntraGroup -GroupId $EntraDirectoryRoleMemberArrayItem.Id).DisplayName
+            $EntraGroupOwnerID = (Get-EntraGroupOwner -GroupId $EntraDirectoryRoleMemberArrayItem.Id -ErrorAction SilentlyContinue).ID
+            IF ($EntraGroupOwnerID)
+             { 
+                [array]$EntraGroupOwnerArray = Get-EntraUser -UserId $EntraGroupOwnerID -ErrorAction SilentlyContinue
+
+                $EntraRAGOwnerRecord = New-Object PSObject
+                $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerDisplayName' -Value $EntraGroupOwnerArray.DisplayName -Force
+                $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerUPN' -Value $EntraGroupOwnerArray.UserPrincipalName -Force
+                $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'RoleAssignableGroup' -Value $EntraGroupName -Force
+                $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $HighlyPrivilegedRoleArrayItem.Name -Force
+                $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerID' -Value $EntraGroupOwnerArray.ID -Force
+                [array]$EntraRAGOwnerArray += $EntraRAGOwnerRecord
+             } 
             $GroupMemberArray = Get-EntraGroupMember -GroupId $EntraDirectoryRoleMemberArrayItem.Id     
             $GroupMemberArray | Add-Member -MemberType NoteProperty -Name 'MemberOfGroup' -Value $EntraGroupName -Force    
             $GroupMemberArray | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $HighlyPrivilegedRoleArrayItem.Name -Force   
@@ -53,8 +68,14 @@ ForEach ( $HighlyPrivilegedRoleArrayItem in $Tier0RoleArray.GetEnumerator() )
     }
  }
 Write-Host ""
-Write-Host "Tier 0 Role Membership:" -ForegroundColor Cyan
-$HighlyPrivilegedMemberRoleArray | Sort MemberOfRole | Select MemberOfRole,accountEnabled,'@odata.type',displayName,userPrincipalName,MemberOfGroup,id | Format-Table -AutoSize
+Write-Host "Current Active Tier 0 Role Membership:" -ForegroundColor Cyan
+$HighlyPrivilegedMemberRoleArray | Sort MemberOfRole | Select MemberOfRole,accountEnabled,'@odata.type',displayName,userPrincipalName,MemberOfGroup | Format-Table -AutoSize
+Write-Host ""
+
+Write-Host ""
+Write-Host "Tier 0 Role Assignable Group Owners:" -ForegroundColor Cyan
+$EntraRAGOwnerArray | Format-Table -AutoSize
+Write-Host ""
 
 
 ## Get PIM
@@ -62,10 +83,11 @@ $HighlyPrivilegedMemberRoleArray | Sort MemberOfRole | Select MemberOfRole,accou
 IF ($InstallPreReqs -eq $True)
  { Install-Module Microsoft.Graph -Scope CurrentUser -Force -AllowClobber }
 
-Import-Module Microsoft.Graph
+# Import-Module Microsoft.Graph
 Connect-MgGraph -Scopes "RoleManagement.Read.Directory", "PrivilegedAccess.Read.AzureAD"
 
-[array]$EntraPIMRoleEligibleArray = Get-MgRoleManagementDirectoryRoleEligibilitySchedule -All
+#[array]$EntraPIMRoleEligibleeArray = Get-MgRoleManagementDirectoryRoleEligibilitySchedule -All
+[array]$EntraPIMRoleEligibleArray = Get-mgrolemanagementdirectoryroleeligibilityscheduleinstance -All 
 
 $EntraIDRoleArray = Get-MgRoleManagementDirectoryRoleDefinition | Sort DisplayName
 
@@ -134,7 +156,7 @@ ForEach ($EntraPIMRoleEligibleArrayItem in $EntraPIMRoleEligibleArray)
 
 Write-Host ""
 Write-Host "PIM Eligible Tier 0 Roles:" -ForegroundColor Cyan
-$EntraPIMRoleEligibleRecordArray | Sort RoleName | Select RoleName,PrincipalObjectType,PrincipalDisplayName,Status,MemberOfGroup,CreatedDateTime,ModifiedDateTime | Format-Table -AutoSize
+$EntraPIMRoleEligibleRecordArray | Sort RoleName | Select RoleName,PrincipalObjectType,PrincipalDisplayName,Status,MemberOfGroup,StartDateTime,EndDateTime | Format-Table -AutoSize
 ##
 
 
