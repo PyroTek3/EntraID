@@ -74,7 +74,7 @@ Write-Host ""
 
 Write-Host ""
 Write-Host "Tier 0 Role Assignable Group Owners:" -ForegroundColor Cyan
-$EntraRAGOwnerArray | Format-Table -AutoSize
+$EntraRAGOwnerArray | Sort MemberOfRole | Format-Table -AutoSize
 Write-Host ""
 
 
@@ -156,7 +156,7 @@ ForEach ($EntraPIMRoleEligibleArrayItem in $EntraPIMRoleEligibleArray)
 
 Write-Host ""
 Write-Host "PIM Eligible Tier 0 Roles:" -ForegroundColor Cyan
-$EntraPIMRoleEligibleRecordArray | Sort RoleName | Select RoleName,PrincipalObjectType,PrincipalDisplayName,Status,MemberOfGroup,StartDateTime,EndDateTime | Format-Table -AutoSize
+$EntraPIMRoleEligibleRecordArray | Sort RoleName,PrincipalDisplayName | Select RoleName,PrincipalObjectType,PrincipalDisplayName,Status,MemberOfGroup,StartDateTime,EndDateTime | Format-Table -AutoSize
 ##
 
 
