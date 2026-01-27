@@ -1,6 +1,6 @@
 ﻿# PowerShell script authored by Sean Metcalf (@PyroTek3)
 # 2026-01-12
-# Last Update: 2026-01-26
+# Last Update: 2026-01-27
 # Script provided as-is
 
 Param
@@ -45,18 +45,21 @@ ForEach ( $HighlyPrivilegedRoleArrayItem in $Tier0RoleArray.GetEnumerator() )
        IF ($EntraDirectoryRoleMemberArrayItem.'@odata.type' -eq '#microsoft.graph.group')
          { 
             $EntraGroupName = (Get-EntraGroup -GroupId $EntraDirectoryRoleMemberArrayItem.Id).DisplayName
-            $EntraGroupOwnerID = (Get-EntraGroupOwner -GroupId $EntraDirectoryRoleMemberArrayItem.Id -ErrorAction SilentlyContinue).ID
-            IF ($EntraGroupOwnerID)
+            $EntraGroupOwnerIDArray = (Get-EntraGroupOwner -GroupId $EntraDirectoryRoleMemberArrayItem.Id -ErrorAction SilentlyContinue).ID
+            IF ($EntraGroupOwnerIDArray)
              { 
-                [array]$EntraGroupOwnerArray = Get-EntraUser -UserId $EntraGroupOwnerID -ErrorAction SilentlyContinue
+                ForEach ($EntraGroupOwnerIDArrayItem in $EntraGroupOwnerIDArray)
+                 {
+                    [array]$EntraGroupOwnerArray = Get-EntraUser -UserId $EntraGroupOwnerIDArrayItem -ErrorAction SilentlyContinue
 
-                $EntraRAGOwnerRecord = New-Object PSObject
-                $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerDisplayName' -Value $EntraGroupOwnerArray.DisplayName -Force
-                $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerUPN' -Value $EntraGroupOwnerArray.UserPrincipalName -Force
-                $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'RoleAssignableGroup' -Value $EntraGroupName -Force
-                $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $HighlyPrivilegedRoleArrayItem.Name -Force
-                $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerID' -Value $EntraGroupOwnerArray.ID -Force
-                [array]$EntraRAGOwnerArray += $EntraRAGOwnerRecord
+                    $EntraRAGOwnerRecord = New-Object PSObject
+                    $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerDisplayName' -Value $EntraGroupOwnerArray.DisplayName -Force
+                    $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerUPN' -Value $EntraGroupOwnerArray.UserPrincipalName -Force
+                    $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'RoleAssignableGroup' -Value $EntraGroupName -Force
+                    $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $HighlyPrivilegedRoleArrayItem.Name -Force
+                    $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerID' -Value $EntraGroupOwnerArray.ID -Force
+                    [array]$EntraRAGOwnerArray += $EntraRAGOwnerRecord
+                 }
              } 
             $GroupMemberArray = Get-EntraGroupMember -GroupId $EntraDirectoryRoleMemberArrayItem.Id     
             $GroupMemberArray | Add-Member -MemberType NoteProperty -Name 'MemberOfGroup' -Value $EntraGroupName -Force    
