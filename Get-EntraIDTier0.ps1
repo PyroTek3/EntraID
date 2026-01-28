@@ -13,7 +13,6 @@ IF ($InstallPreReqs -eq $True)
 
 # Import-Module Microsoft.Entra
 Connect-Entra
-#  Get-Command -Module Microsoft.Entra* -verb get
 
 # Get Administration
 $DirectoryRoleArray = Get-EntraDirectoryRole 
