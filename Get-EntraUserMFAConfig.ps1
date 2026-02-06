@@ -51,6 +51,7 @@ ForEach ($Tier0dminArrayItem in $Tier0dminArray)
     $EntraUserMFARecord = [PSCustomObject]@{
         UserDisplayName = $Tier0dminArrayItem.DisplayName
         UserUPN = $Tier0dminArrayItem.UserPrincipalName
+        ObjectType = $Tier0dminArrayItem.'@odata.type'
         LastPasswordChangeDate = $NULL
         MFAPhoneNumber = $NULL
         MFAPhoneType = $NULL
@@ -88,6 +89,9 @@ ForEach ($Tier0dminArrayItem in $Tier0dminArray)
 
         IF ($EntraUserMFAArrayItem.PhoneAppVersion)
          { $EntraUserMFARecord | Add-Member -MemberType NoteProperty -Name 'MFAPhoneAppVersion' -Value $EntraUserMFAArrayItem.PhoneAppVersion -Force }  
+     
+        IF ($EntraUserMFAArrayItem.AuthenticationMethodType -eq '#microsoft.graph.softwareOathAuthenticationMethod')
+         { $EntraUserMFARecord | Add-Member -MemberType NoteProperty -Name 'MFASoftwareOathAuthentication' -Value 'SoftwareOathAuthentication' -Force } 
      }
                       
    [array]$EntraUserMFAConfigArray += $EntraUserMFARecord
@@ -95,24 +99,27 @@ ForEach ($Tier0dminArrayItem in $Tier0dminArray)
 
 $EntraUserMFAConfigArray = $EntraUserMFAConfigArray | Sort-Object UserDisplayName 
 Write-Host "All Direct Tier 0 Admins and Their Registered MFA Methods:" -ForegroundColor Cyan
-$EntraUserMFAConfigArray | Format-Table -AutoSize
+$EntraUserMFAConfigArray | Where {$_.ObjectType -eq '#microsoft.graph.user'} | Select UserDisplayName,UserUPN,MFAPhoneNumber,MFAPhoneType,MFAEmailAddress,MFADeviceDisplayName,MFADeviceTag,MFAPhoneAppVersion,MFASoftwareOathAuthentication,LastPasswordChangeDate | Format-Table -AutoSize
 
-$UsersWithNoMFA = $EntraUserMFAConfigArray | Where { !($_.MFAPhoneNumber) -AND !($_.MFAPhoneNumber) -AND !($_.MFAEmailAddress) -AND !($_.MFADeviceTag) }
-$UsersWithMFAPhoneNumberAndType = $EntraUserMFAConfigArray | Where {($_.MFAPhoneNumber) -AND ($_.MFAPhoneType -eq 'Mobile')}
-$UsersWithMFAsmsSignInStateDisabled = $EntraUserMFAConfigArray | Where {$_.MFAsmsSignInState -eq 'notAllowedByPolicy'}
-$UsersWithMFADeviceTagActivated = $EntraUserMFAConfigArray | Where {$_.MFADeviceTag -eq 'SoftwareTokenActivated'}
-$UsersWithMFAPhoneAppVersion = $EntraUserMFAConfigArray | Where {$_.MFAPhoneAppVersion}
+[array]$UsersWithNoMFA = $EntraUserMFAConfigArray | Where { !($_.MFAPhoneNumber) -AND !($_.MFAPhoneNumber) -AND !($_.MFAEmailAddress) -AND !($_.MFADeviceTag) }
+[array]$UsersWithMFAPhoneNumberAndType = $EntraUserMFAConfigArray | Where {($_.MFAPhoneNumber) -AND ($_.MFAPhoneType -eq 'Mobile')}
+[array]$UsersWithMFAsmsSignInStateDisabled = $EntraUserMFAConfigArray | Where {$_.MFAsmsSignInState -eq 'notAllowedByPolicy'}
+[array]$UsersWithMFADeviceTagActivated = $EntraUserMFAConfigArray | Where {$_.MFADeviceTag -eq 'SoftwareTokenActivated'}
+[array]$UsersWithMFASoftwareOathAuthentication = $EntraUserMFAConfigArray | Where {$_.MFASoftwareOathAuthentication -eq 'SoftwareOathAuthentication'}
+[array]$UsersWithMFAPhoneAppVersion = $EntraUserMFAConfigArray | Where {$_.MFAPhoneAppVersion}
 
 Write-Host "Total Tier 0 Admins: $($Tier0dminArray.Count)" -ForegroundColor Cyan
-Write-Host "  Admins with No MFA: $($UsersWithNoMFA.Count)" -ForegroundColor Cyan
+Write-Host "  Admins with No MFA: $($UsersWithNoMFA.Count)" -ForegroundColor Red
 Write-Host "  Admins with Phone Number (Mobile): $($UsersWithMFAPhoneNumberAndType.Count)" -ForegroundColor Cyan
 IF ($UsersWithMFAsmsSignInStateDisabled)
  { Write-Host "  SMS is disabled"  -ForegroundColor Cyan }
-Write-Host "  Total Admins with Microsoft App: $($UsersWithMFADeviceTag.Count)" -ForegroundColor Cyan
+Write-Host "  Total Admins with Microsoft Authenticator App: $($UsersWithMFADeviceTagActivated.Count)" -ForegroundColor Cyan
+Write-Host "  Total Admins with a different Authenticator app: $($UsersWithMFASoftwareOathAuthentication.Count)" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "$($UsersWithNoMFA.Count) Admins with No MFA Configured:" -ForegroundColor Cyan
 $UsersWithNoMFA = $UsersWithNoMFA | sort-object UserDisplayName
 ForEach ($UsersWithNoMFAItem in $UsersWithNoMFA)
  {
-    Write-Host " * $($UsersWithNoMFAItem.UserDisplayName) ($($UsersWithNoMFAItem.UserUPN))"
+    IF ($UsersWithNoMFAItem.ObjectType -eq '#microsoft.graph.user')
+     { Write-Host " * $($UsersWithNoMFAItem.UserDisplayName) ($($UsersWithNoMFAItem.UserUPN))" }
  }
