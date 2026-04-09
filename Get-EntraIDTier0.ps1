@@ -1,11 +1,13 @@
 ﻿# PowerShell script authored by Sean Metcalf (@PyroTek3)
 # 2026-01-12
-# Last Update: 2026-01-27
+# Last Update: 2026-04-09
 # Script provided as-is
 
 Param
  (
-    [switch]$InstallPreReqs
+    [switch]$InstallPreReqs = $True,
+    [string]$ExportCSVPath = 'C:\Users\CONSBLM\OneDrive - Capital Group\Retest\Data',
+    [switch]$ExportCSV = $True
  )
 
 IF ($InstallPreReqs -eq $True)
@@ -18,25 +20,28 @@ Connect-Entra
 $DirectoryRoleArray = Get-EntraDirectoryRole 
 
 # Entra ID Tier Membership explained here: https://trustedsec.com/blog/managing-privileged-roles-in-microsoft-entra-id-a-pragmatic-approach
-$Tier0RoleArray = @{
-    'Application Administrator' = '3f92f59a-8d14-4a54-8527-54a22b3d7353' 
-    'Cloud Application Administrator' = 'b8f22551-9c37-48d6-bb28-78c5734dc131'
-    'Conditional Access Administrator' = '0faee40b-3a9a-4f79-8637-8ccf2fed37ea'
-    'Global Administrator' = 'c7b78838-819c-4322-ab9e-b0f8e95c8dac'   
-    'Hybrid Identity Administrator' = '1e2248cd-869b-45ba-a7c4-0e88af6861f2' 
-    'Partner Tier2 Support' = 'f7a48fc0-76ed-41ee-9df5-54f5468815b4'     
-    'Privileged Authentication Administrator' = '59af1245-2aff-4d20-8c9f-7708193fda5e' 
-    'Privileged Role Administrator' = '23e215c3-a6c9-4a57-a883-49d953cdba62'  
-    'Security Administrator' = 'dddfb8b9-6206-4123-8836-eac62c4d569e'                                                                  
-  }
+$Tier0RoleArray = @(
+    'Application Administrator',
+    'Cloud Application Administrator',
+    'Conditional Access Administrator',
+    'Global Administrator',
+    'Hybrid Identity Administrator',
+    'Partner Tier2 Support',  
+    'Privileged Authentication Administrator',
+    'Privileged Role Administrator',  
+    'Security Administrator'                                                                  
+  )
 
 $HighlyPrivilegedMemberRoleArray = @()
 $EntraRAGOwnerArray = @()
-ForEach ( $HighlyPrivilegedRoleArrayItem in $Tier0RoleArray.GetEnumerator() )
+ForEach ( $HighlyPrivilegedRoleArrayItem in $Tier0RoleArray )
  {  
-   $EntraDirectoryRoleMemberArray = Get-EntraDirectoryRoleMember $HighlyPrivilegedRoleArrayItem.Value -ErrorAction SilentlyContinue
+   $RoleInfoArray = $DirectoryRoleArray | Where {$_.DisplayName -eq $HighlyPrivilegedRoleArrayItem}
+   $EntraDirectoryRoleMemberArray = Get-EntraDirectoryRoleMember -DirectoryRoleId $RoleInfoArray.Id
+   
+   # Invoke-GraphRequest -Uri "Https://graph.microsoft.com/beta/DirectoryRoles/$($RoleInfoArray.Id)/members" 
 
-   $EntraDirectoryRoleMemberArray | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $HighlyPrivilegedRoleArrayItem.Name -Force 
+   $EntraDirectoryRoleMemberArray | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $RoleInfoArray.DisplayName -Force 
    [array]$HighlyPrivilegedMemberRoleArray += $EntraDirectoryRoleMemberArray
 
    ForEach ($EntraDirectoryRoleMemberArrayItem in $EntraDirectoryRoleMemberArray)
@@ -44,12 +49,12 @@ ForEach ( $HighlyPrivilegedRoleArrayItem in $Tier0RoleArray.GetEnumerator() )
        IF ($EntraDirectoryRoleMemberArrayItem.'@odata.type' -eq '#microsoft.graph.group')
          { 
             $EntraGroupName = (Get-EntraGroup -GroupId $EntraDirectoryRoleMemberArrayItem.Id).DisplayName
-            $EntraGroupOwnerIDArray = (Get-EntraGroupOwner -GroupId $EntraDirectoryRoleMemberArrayItem.Id -ErrorAction SilentlyContinue).ID
+            $EntraGroupOwnerIDArray = (Get-EntraGroupOwner -GroupId $EntraDirectoryRoleMemberArrayItem.Id).ID
             IF ($EntraGroupOwnerIDArray)
              { 
                 ForEach ($EntraGroupOwnerIDArrayItem in $EntraGroupOwnerIDArray)
                  {
-                    [array]$EntraGroupOwnerArray = Get-EntraUser -UserId $EntraGroupOwnerIDArrayItem -ErrorAction SilentlyContinue
+                    [array]$EntraGroupOwnerArray = Get-EntraUser -UserId $EntraGroupOwnerIDArrayItem
 
                     $EntraRAGOwnerRecord = New-Object PSObject
                     $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerDisplayName' -Value $EntraGroupOwnerArray.DisplayName -Force
@@ -102,9 +107,9 @@ ForEach ($EntraPIMRoleEligibleArrayItem in $EntraPIMRoleEligibleArray)
          { $RoleName = $EntraIDRoleArrayItem.DisplayName }
       }
     
-    ForEach ( $HighlyPrivilegedRoleArrayItem in $Tier0RoleArray.GetEnumerator() )
+    ForEach ( $HighlyPrivilegedRoleArrayItem in $Tier0RoleArray )
      { 
-        IF ($RoleName -eq $HighlyPrivilegedRoleArrayItem.Name) 
+        IF ($RoleName -eq $HighlyPrivilegedRoleArrayItem) 
          {  
             $UserInfoArray = @()
             $GroupInfoArray = @()
@@ -160,5 +165,4 @@ Write-Host ""
 Write-Host "PIM Eligible Tier 0 Roles:" -ForegroundColor Cyan
 $EntraPIMRoleEligibleRecordArray | Sort RoleName,PrincipalDisplayName | Select RoleName,PrincipalObjectType,PrincipalDisplayName,Status,MemberOfGroup,StartDateTime,EndDateTime | Format-Table -AutoSize
 ##
-
 
