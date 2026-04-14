@@ -1,6 +1,6 @@
 ﻿# PowerShell script authored by Sean Metcalf (@PyroTek3)
 # 2026-01-12
-# Last Update: 2026-04-09
+# Last Update: 2026-04-14
 # Script provided as-is
 
 Param
@@ -114,14 +114,49 @@ ForEach ($HighlyPrivilegedRoleArrayItem in $TierRoleArray)
    # (Invoke-GraphRequest -Uri "Https://graph.microsoft.com/beta/DirectoryRoles").value | Sort DisplayName #  /$($RoleInfoArray.Id)/members" 
    IF ($EntraDirectoryRoleMemberArray)
     {
-       $EntraDirectoryRoleMemberArray | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $RoleInfoArray.DisplayName -Force 
-       [array]$HighlyPrivilegedMemberRoleArray += $EntraDirectoryRoleMemberArray
+       # $EntraDirectoryRoleMemberArray | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $RoleInfoArray.DisplayName -Force 
+       # [array]$HighlyPrivilegedMemberRoleArray += $EntraDirectoryRoleMemberArray
 
        ForEach ($EntraDirectoryRoleMemberArrayItem in $EntraDirectoryRoleMemberArray)
         {
+           IF ($EntraDirectoryRoleMemberArrayItem.'@odata.type' -eq '#microsoft.graph.user')
+             { 
+                [array]$EntraUserInfoArray = Get-EntraUser -UserId $EntraDirectoryRoleMemberArrayItem.ID
+                $EntraUserInfoRecord = New-Object PSObject
+                $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'DisplayName' -Value $EntraUserInfoArray.DisplayName -Force
+                $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'UserPrincipalName' -Value $EntraUserInfoArray.UserPrincipalName -Force
+                $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'accountEnabled' -Value $EntraUserInfoArray.accountEnabled -Force
+                $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'ObjectType' -Value 'User' -Force
+                $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'ImmutableId' -Value $EntraUserInfoArray.ImmutableId -Force
+                IF ($EntraUserInfoArray.ImmutableId)
+                 { $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Synced' -Value $True -Force }
+                ELSE 
+                 { $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Synced' -Value $False -Force }
+                $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'ID' -Value $EntraUserInfoArray.ID -Force
+                $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'MemberOfGroup' -Value $NULL -Force
+                $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $HighlyPrivilegedRoleArrayItem -Force   
+                $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'RoleName' -Value $HighlyPrivilegedRoleArrayItem -Force 
+                $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Status' -Value 'Active' -Force 
+                
+                [array]$HighlyPrivilegedMemberRoleArray += $EntraUserInfoRecord
+             }
+
            IF ($EntraDirectoryRoleMemberArrayItem.'@odata.type' -eq '#microsoft.graph.group')
              { 
-                $EntraGroupName = (Get-EntraGroup -GroupId $EntraDirectoryRoleMemberArrayItem.Id).DisplayName
+                $EntraGroupInfoArray = Get-EntraGroup -GroupId $EntraDirectoryRoleMemberArrayItem.Id
+
+                $EntraGroupRecord = New-Object PSObject
+                $EntraGroupRecord | Add-Member -MemberType NoteProperty -Name 'DisplayName' -Value $EntraGroupInfoArray.DisplayName -Force
+                $EntraGroupRecord | Add-Member -MemberType NoteProperty -Name 'UserPrincipalName' -Value $NULL -Force
+                $EntraGroupRecord | Add-Member -MemberType NoteProperty -Name 'accountEnabled' -Value $NULL -Force
+                $EntraGroupRecord | Add-Member -MemberType NoteProperty -Name 'ObjectType' -Value 'Group' -Force
+                $EntraGroupRecord | Add-Member -MemberType NoteProperty -Name 'ImmutableId' -Value $EntraGroupInfoArray.ImmutableId -Force
+                $EntraGroupRecord | Add-Member -MemberType NoteProperty -Name 'ID' -Value $EntraGroupInfoArray.ID -Force
+                $EntraGroupRecord | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $HighlyPrivilegedRoleArrayItem -Force   
+                $EntraGroupRecord | Add-Member -MemberType NoteProperty -Name 'RoleName' -Value $HighlyPrivilegedRoleArrayItem -Force 
+                $EntraGroupRecord | Add-Member -MemberType NoteProperty -Name 'Status' -Value 'Active' -Force 
+                [array]$HighlyPrivilegedMemberRoleArray += $EntraGroupRecord
+
                 $EntraGroupOwnerIDArray = (Get-EntraGroupOwner -GroupId $EntraDirectoryRoleMemberArrayItem.Id -ErrorAction SilentlyContinue).ID
                 IF ($EntraGroupOwnerIDArray)
                  { 
@@ -132,18 +167,41 @@ ForEach ($HighlyPrivilegedRoleArrayItem in $TierRoleArray)
                         $EntraRAGOwnerRecord = New-Object PSObject
                         $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerDisplayName' -Value $EntraGroupOwnerArray.DisplayName -Force
                         $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerUPN' -Value $EntraGroupOwnerArray.UserPrincipalName -Force
-                        $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'RoleAssignableGroup' -Value $EntraGroupName -Force
+                        $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'RoleAssignableGroup' -Value $EntraGroupInfoArray.DisplayName -Force
                         $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $HighlyPrivilegedRoleArrayItem -Force
+                        $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'ObjectType' -Value 'User' -Force
+                        $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'ImmutableId' -Value $EntraGroupOwnerArray.ImmutableId -Force
+                        IF ($EntraGroupOwnerArray.ImmutableId)
+                         { $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Synced' -Value $True -Force }
+                        ELSE 
+                         { $EntraUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Synced' -Value $False -Force }
                         $EntraRAGOwnerRecord | Add-Member -MemberType NoteProperty -Name 'OwnerID' -Value $EntraGroupOwnerArray.ID -Force
                         [array]$EntraRAGOwnerArray += $EntraRAGOwnerRecord
                      }
                  } 
-                $GroupMemberArray = Get-EntraGroupMember -GroupId $EntraDirectoryRoleMemberArrayItem.Id     
-                $GroupMemberArray | Add-Member -MemberType NoteProperty -Name 'MemberOfGroup' -Value $EntraGroupName -Force    
-                $GroupMemberArray | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $HighlyPrivilegedRoleArrayItem -Force   
-                $GroupMemberArray | Add-Member -MemberType NoteProperty -Name 'RoleName' -Value $HighlyPrivilegedRoleArrayItem -Force 
-                $GroupMemberArray | Add-Member -MemberType NoteProperty -Name 'Status' -Value 'Active' -Force 
-               [array]$HighlyPrivilegedMemberRoleArray += $GroupMemberArray
+                
+                $GroupMemberArray = Get-EntraGroupMember -GroupId $EntraDirectoryRoleMemberArrayItem.Id  
+
+                ForEach ($GroupMemberArrayItem in $GroupMemberArray)
+                 {
+                     [array]$EntraUserInfoArray = Get-EntraUser -UserId $GroupMemberArrayItem.ID
+                    $EntraGroupUserInfoRecord = New-Object PSObject
+                    $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'DisplayName' -Value $EntraUserInfoArray.DisplayName -Force
+                    $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'UserPrincipalName' -Value $EntraUserInfoArray.UserPrincipalName -Force
+                    $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'accountEnabled' -Value $EntraUserInfoArray.accountEnabled -Force
+                    $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'ObjectType' -Value 'User' -Force
+                    $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'ImmutableId' -Value $EntraUserInfoArray.ImmutableId -Force
+                    IF ($EntraUserInfoArray.ImmutableId)
+                     { $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Synced' -Value $True -Force }
+                    ELSE 
+                     { $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Synced' -Value $False -Force }
+                    $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'ID' -Value $EntraUserInfoArray.ID -Force
+                    $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'MemberOfGroup' -Value $EntraGroupInfoArray.DisplayName -Force
+                    $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $HighlyPrivilegedRoleArrayItem -Force   
+                    $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'RoleName' -Value $HighlyPrivilegedRoleArrayItem -Force 
+                    $EntraGroupUserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Status' -Value 'Active' -Force 
+                    [array]$HighlyPrivilegedMemberRoleArray += $EntraGroupUserInfoRecord
+                 }   
              } 
         }
     }
@@ -151,7 +209,7 @@ ForEach ($HighlyPrivilegedRoleArrayItem in $TierRoleArray)
 
 Write-Host ""
 Write-Host "Current Active Tier $TierLevel Role Membership:" -ForegroundColor Cyan
-$HighlyPrivilegedMemberRoleArray | Sort MemberOfRole,'@odata.type' | Select MemberOfRole,accountEnabled,'@odata.type',displayName,userPrincipalName,MemberOfGroup | Format-Table -AutoSize
+$HighlyPrivilegedMemberRoleArray | Sort MemberOfRole,'@odata.type' | Select MemberOfRole,accountEnabled,ObjectType,displayName,userPrincipalName,Synced,MemberOfGroup | Format-Table -AutoSize
 Write-Host ""
 
 Write-Host ""
@@ -161,7 +219,7 @@ Write-Host ""
 
 IF ($ExportCSVPath)
  {
-   $HighlyPrivilegedMemberRoleArray | Sort MemberOfRole,'@odata.type' | Select MemberOfRole,accountEnabled,'@odata.type',displayName,userPrincipalName,MemberOfGroup | Export-CSV $($ExportCSVPath + '\Tier' + $TierLevel + '-HighlyPrivilegedRoleMembers.csv') -NoTypeInformation -Force
+   $HighlyPrivilegedMemberRoleArray | Sort MemberOfRole,'@odata.type' | Select MemberOfRole,accountEnabled,'@odata.type',displayName,userPrincipalName,ImmutableID,Synced,MemberOfGroup,ID | Export-CSV $($ExportCSVPath + '\Tier' + $TierLevel + '-HighlyPrivilegedRoleMembers.csv') -NoTypeInformation -Force
    $EntraRAGOwnerArray | Sort MemberOfRole | Export-CSV $($ExportCSVPath + '\Tier' + $TierLevel + '-EntraRAGOwners.csv')  -NoTypeInformation -Force
  }
 
@@ -195,61 +253,76 @@ ForEach ($EntraPIMRoleEligibleArrayItem in $EntraPIMRoleEligibleArray)
             $UserInfoArray = @()
             $GroupInfoArray = @()
             TRY
-              { $UserInfoArray = Get-MgUser -UserId $EntraPIMRoleEligibleArrayItem.PrincipalId -ErrorAction Stop }
+              { $UserInfoArray = Get-EntraUser -UserId $EntraPIMRoleEligibleArrayItem.PrincipalId -ErrorAction Stop }
             CATCH
               { $GroupInfoArray = Get-MgGroup -GroupId $EntraPIMRoleEligibleArrayItem.PrincipalId -ErrorAction SilentlyContinue }
-
-            $EntraPIMRoleEligibleArrayItem | Add-Member -MemberType NoteProperty -Name 'RoleName' -Value $RoleName -Force 
     
             IF ($UserInfoArray)
              { 
-                $EntraPIMRoleEligibleArrayItem | Add-Member -MemberType NoteProperty -Name 'PrincipalObjectType' -Value 'User' -Force 
-                $EntraPIMRoleEligibleArrayItem | Add-Member -MemberType NoteProperty -Name 'PrincipalDisplayName' -Value $UserInfoArray.DisplayName -Force    
-                $EntraPIMRoleEligibleArrayItem | Add-Member -MemberType NoteProperty -Name 'PrincipalUPN' -Value $UserInfoArray.UserPrincipalName -Force
-                $EntraPIMRoleEligibleArrayItem | Add-Member -MemberType NoteProperty -Name 'PrincipalInfoArray' -Value $UserInfoArray -Force
-                $EntraPIMRoleEligibleArrayItem | Add-Member -MemberType NoteProperty -Name 'Status' -Value 'Eligible' -Force 
+                $EntraPIMRoleEligibleUserRecord = New-Object PSObject
+                $EntraPIMRoleEligibleUserRecord | Add-Member -MemberType NoteProperty -Name 'PrincipalObjectType' -Value 'User' -Force 
+                $EntraPIMRoleEligibleUserRecord | Add-Member -MemberType NoteProperty -Name 'PrincipalDisplayName' -Value $UserInfoArray.DisplayName -Force    
+                $EntraPIMRoleEligibleUserRecord | Add-Member -MemberType NoteProperty -Name 'PrincipalUPN' -Value $UserInfoArray.UserPrincipalName -Force
+                $EntraPIMRoleEligibleUserRecord | Add-Member -MemberType NoteProperty -Name 'PrincipalInfoArray' -Value $UserInfoArray -Force
+                $EntraPIMRoleEligibleUserRecord | Add-Member -MemberType NoteProperty -Name 'ImmutableId' -Value $UserInfoArray.ImmutableId -Force
+                IF ($UserInfoArray.ImmutableId)
+                 { $EntraPIMRoleEligibleUserRecord | Add-Member -MemberType NoteProperty -Name 'Synced' -Value $True -Force }
+                ELSE 
+                 { $EntraPIMRoleEligibleUserRecord | Add-Member -MemberType NoteProperty -Name 'Synced' -Value $False -Force }
+                $EntraPIMRoleEligibleUserRecord | Add-Member -MemberType NoteProperty -Name 'Status' -Value 'Eligible' -Force 
+                $EntraPIMRoleEligibleUserRecord | Add-Member -MemberType NoteProperty -Name 'RoleName' -Value $RoleName -Force
+
+                $EntraPIMRoleEligibleRecordArray += $EntraPIMRoleEligibleUserRecord
              } 
             IF ($GroupInfoArray)
              { 
-                $EntraPIMRoleEligibleArrayItem | Add-Member -MemberType NoteProperty -Name 'PrincipalObjectType' -Value 'Group' -Force 
-                $EntraPIMRoleEligibleArrayItem | Add-Member -MemberType NoteProperty -Name 'PrincipalDisplayName' -Value $GroupInfoArray.DisplayName -Force  
-                $EntraPIMRoleEligibleArrayItem | Add-Member -MemberType NoteProperty -Name 'PrincipalInfoArray' -Value $GroupInfoArray -Force  
-                $EntraPIMRoleEligibleArrayItem | Add-Member -MemberType NoteProperty -Name 'Status' -Value 'Eligible' -Force 
+                $EntraPIMRoleEligibleGroupRecord = New-Object PSObject
+                $EntraPIMRoleEligibleGroupRecord | Add-Member -MemberType NoteProperty -Name 'PrincipalObjectType' -Value 'Group' -Force 
+                $EntraPIMRoleEligibleGroupRecord | Add-Member -MemberType NoteProperty -Name 'PrincipalDisplayName' -Value $GroupInfoArray.DisplayName -Force  
+                $EntraPIMRoleEligibleGroupRecord | Add-Member -MemberType NoteProperty -Name 'PrincipalInfoArray' -Value $GroupInfoArray -Force  
+                $EntraPIMRoleEligibleGroupRecord | Add-Member -MemberType NoteProperty -Name 'Status' -Value 'Eligible' -Force 
+                $EntraPIMRoleEligibleGroupRecord | Add-Member -MemberType NoteProperty -Name 'RoleName' -Value $RoleName -Force
+
+                $EntraPIMRoleEligibleRecordArray += $EntraPIMRoleEligibleGroupRecord
 
                 $GroupMembersArray = @()
                 $GroupMembersArray = Get-MgGroupMember -GroupId $EntraPIMRoleEligibleArrayItem.PrincipalId
                 ForEach ($GroupMembersArrayItem in $GroupMembersArray)
                  {
-                    $UserInfoArray = Get-MgUser -UserId $GroupMembersArrayItem.Id -ErrorAction Stop
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $RoleName -Force 
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'RoleName' -Value $RoleName -Force 
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'CreatedDateTime' -Value $EntraPIMRoleEligibleArrayItem.CreatedDateTime -Force 
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'ModifiedDateTime' -Value $EntraPIMRoleEligibleArrayItem.ModifiedDateTime -Force 
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'PIMStatus' -Value $EntraPIMRoleEligibleArrayItem.Status -Force 
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'Status' -Value 'Eligible' -Force 
-
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'PrincipalObjectType' -Value 'User' -Force 
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'Id' -Value $UserInfoArray.Id -Force 
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'accountEnabled' -Value $UserInfoArray.accountEnabled -Force 
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'MemberOfGroup' -Value $GroupInfoArray.DisplayName -Force 
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'PrincipalDisplayName' -Value $UserInfoArray.DisplayName -Force    
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'PrincipalUPN' -Value $UserInfoArray.UserPrincipalName -Force
-                    $UserInfoArray | Add-Member -MemberType NoteProperty -Name 'PrincipalInfoArray' -Value $UserInfoArray -Force        
-                    [array]$EntraPIMRoleEligibleRecordArray += $UserInfoArray
+                    $UserInfoArray = Get-EntraUser -UserId $GroupMembersArrayItem.Id 
+                    
+                    $UserInfoRecord = New-Object PSObject
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'MemberOfRole' -Value $RoleName -Force 
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'RoleName' -Value $RoleName -Force 
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'CreatedDateTime' -Value $EntraPIMRoleEligibleArrayItem.CreatedDateTime -Force 
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'ModifiedDateTime' -Value $EntraPIMRoleEligibleArrayItem.ModifiedDateTime -Force 
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'PIMStatus' -Value $EntraPIMRoleEligibleArrayItem.Status -Force 
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Status' -Value 'Eligible' -Force 
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'ImmutableId' -Value $UserInfoArray.ImmutableId -Force
+                    IF ($UserInfoArray.ImmutableId)
+                     { $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Synced' -Value $True -Force }
+                    ELSE 
+                     { $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Synced' -Value $False -Force }
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'PrincipalObjectType' -Value 'User' -Force 
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'Id' -Value $UserInfoArray.Id -Force 
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'accountEnabled' -Value $UserInfoArray.accountEnabled -Force 
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'MemberOfGroup' -Value $GroupInfoArray.DisplayName -Force 
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'PrincipalDisplayName' -Value $UserInfoArray.DisplayName -Force    
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'PrincipalUPN' -Value $UserInfoArray.UserPrincipalName -Force
+                    $UserInfoRecord | Add-Member -MemberType NoteProperty -Name 'PrincipalInfoArray' -Value $UserInfoArray -Force        
+                    [array]$EntraPIMRoleEligibleRecordArray += $UserInfoRecord
                  }
              } 
-
-            $EntraPIMRoleEligibleRecordArray += $EntraPIMRoleEligibleArrayItem
            }            
         }
    }
 
 Write-Host ""
 Write-Host "PIM Eligible Tier $TierLevel Roles:" -ForegroundColor Cyan
-$EntraPIMRoleEligibleRecordArray | Sort RoleName,PrincipalObjectType,PrincipalDisplayName | Select RoleName,PrincipalObjectType,PrincipalDisplayName,PrincipalUPN,Status,MemberOfGroup,StartDateTime,EndDateTime | Format-Table -AutoSize
+$EntraPIMRoleEligibleRecordArray | Sort RoleName,PrincipalObjectType,PrincipalDisplayName | Select RoleName,PrincipalObjectType,PrincipalDisplayName,PrincipalUPN,Synced,MemberOfGroup,StartDateTime,EndDateTime | Format-Table -AutoSize
 ##
 
 IF ($ExportCSVPath)
  {
-   $EntraPIMRoleEligibleRecordArray | Sort RoleName,PrincipalObjectType,PrincipalDisplayName | Select RoleName,PrincipalObjectType,PrincipalDisplayName,PrincipalUPN,Status,MemberOfGroup,StartDateTime,EndDateTime | Export-CSV $($ExportCSVPath + '\Tier' + $TierLevel + '-EntraPIMRoleEligible.csv') -NoTypeInformation -Force
+   $EntraPIMRoleEligibleRecordArray | Sort RoleName,PrincipalObjectType,PrincipalDisplayName | Select RoleName,PrincipalObjectType,PrincipalDisplayName,PrincipalUPN,ImmutableId,Synced,Status,MemberOfGroup,StartDateTime,EndDateTime,ID | Export-CSV $($ExportCSVPath + '\Tier' + $TierLevel + '-EntraPIMRoleEligible.csv') -NoTypeInformation -Force
  }
