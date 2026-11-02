@@ -13,7 +13,6 @@ Param
 IF ($InstallPreReqs -eq $True)
  { 
   Install-Module -Name Microsoft.Entra -Repository PSGallery -Scope CurrentUser -Force -AllowClobber 
-  Install-Module -Name Microsoft.Graph -Repository PSGallery -Scope CurrentUser -Force -AllowClobber 
  }
 
 # Import-Module Microsoft.Entra
