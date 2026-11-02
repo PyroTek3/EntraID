@@ -6,12 +6,15 @@
 Param
  (
     [int]$TierLevel,
-    [switch]$InstallPreReq,
+    [switch]$InstallPreReqs,
     [string]$ExportCSVPath
  )
 
 IF ($InstallPreReqs -eq $True)
- { Install-Module -Name Microsoft.Entra -Repository PSGallery -Scope CurrentUser -Force -AllowClobber }
+ { 
+  Install-Module -Name Microsoft.Entra -Repository PSGallery -Scope CurrentUser -Force -AllowClobber 
+  Install-Module -Name Microsoft.Graph -Repository PSGallery -Scope CurrentUser -Force -AllowClobber 
+ }
 
 # Import-Module Microsoft.Entra
 Write-Host "Connecting to Entra..." -ForegroundColor Cyan
